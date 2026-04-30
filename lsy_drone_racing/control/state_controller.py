@@ -32,9 +32,10 @@ class Level2StateController(Controller):
     LEAD_LIMIT = 0.6  # m, max distance the leading setpoint may run ahead of the drone
     APPROACH_DIST = 0.45  # m, distance of the pre-gate waypoint along the gate axis
     EXIT_DIST = 0.35  # m, distance of the post-gate waypoint along the gate axis
-    PRE_GATE_LATERAL_CLEAR = 0.15  # m, sideways offset added to the pre-gate when arriving
     WAYPOINT_TOL = 0.18  # m, distance at which a waypoint is considered reached
     POST_GATE_TOL = 0.25  # m, looser tolerance for clearing the post-gate point
+    CENTER_PASS_RADIUS = 0.10  # m, require crossing near the gate center (yz in gate frame)
+    CENTER_PASS_PLANE_X = 0.03  # m, require being slightly past the center plane before exit
     TAKEOFF_HEIGHT = 0.4  # m, intermediate height when starting from the floor
     HOLD_AFTER_FINISH = 0.4  # s, hover briefly after the last gate so the env registers a finish
 
@@ -63,13 +64,12 @@ class Level2StateController(Controller):
     def _gate_axes(
         self, gate_quat: NDArray[np.floating]
     ) -> tuple[NDArray[np.floating], NDArray[np.floating]]:
-        """Return horizontal unit vectors along the gate's passing axis and lateral axis."""
+        """Return unit vectors along the gate's passing axis and lateral axis."""
         rot = R.from_quat(gate_quat).as_matrix()
         gate_x = rot[:, 0].copy()
-        gate_x[2] = 0.0
         gate_x /= max(np.linalg.norm(gate_x), 1e-6)
-        # Right-hand horizontal lateral axis
-        gate_y = np.array([-gate_x[1], gate_x[0], 0.0])
+        gate_y = rot[:, 1].copy()
+        gate_y /= max(np.linalg.norm(gate_y), 1e-6)
         return gate_x, gate_y
 
     def _gate_waypoints(
@@ -160,7 +160,7 @@ class Level2StateController(Controller):
 
         # 5) Stage advancement.
         # Stage 0: pre-gate; advance once close enough.
-        # Stage 1: gate center; once we have passed the gate plane, jump to post-gate.
+        # Stage 1: gate center; only jump to post-gate after passing near gate center.
         # Stage 2: post-gate; once close, the env will normally have updated target_gate and
         #          we will reset stage at the top of the next call.
         goal = waypoints[self._stage]
@@ -168,8 +168,12 @@ class Level2StateController(Controller):
             self._stage = 1
             goal = waypoints[self._stage]
         if self._stage == 1:
-            local_x = float(np.dot(pos - gate_pos, gate_x))
-            if local_x > -0.05:  # We are at / past the gate plane → ride the exit point.
+            local_pos = R.from_quat(gate_quat).apply(pos - gate_pos, inverse=True)
+            lateral_dist = float(np.linalg.norm(local_pos[1:]))
+            passed_center = (
+                local_pos[0] > self.CENTER_PASS_PLANE_X and lateral_dist < self.CENTER_PASS_RADIUS
+            )
+            if passed_center:  # Exit only after crossing through the center corridor.
                 self._stage = 2
                 goal = waypoints[self._stage]
         if self._stage == 2 and np.linalg.norm(pos - goal) < self.POST_GATE_TOL:
