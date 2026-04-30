@@ -28,10 +28,10 @@ class Level2StateController(Controller):
     """State controller that always plans relative to the observed target gate pose."""
 
     # Tunables. Defaults are conservative; raise SPEED once the run is reliable.
-    SPEED = 1.1  # m/s, target setpoint speed along the path
+    SPEED = 0.8  # m/s, target setpoint speed along the path
     LEAD_LIMIT = 0.6  # m, max distance the leading setpoint may run ahead of the drone
-    APPROACH_DIST = 0.45  # m, distance of the pre-gate waypoint along the gate axis
-    EXIT_DIST = 0.35  # m, distance of the post-gate waypoint along the gate axis
+    APPROACH_DIST = 0.55  # m, distance of the pre-gate waypoint along the gate axis
+    EXIT_DIST = 0.45  # m, distance of the post-gate waypoint along the gate axis
     WAYPOINT_TOL = 0.18  # m, distance at which a waypoint is considered reached
     POST_GATE_TOL = 0.25  # m, looser tolerance for clearing the post-gate point
     CENTER_PASS_RADIUS = 0.10  # m, require crossing near the gate center (yz in gate frame)

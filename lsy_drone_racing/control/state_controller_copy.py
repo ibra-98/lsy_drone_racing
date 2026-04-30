@@ -38,8 +38,8 @@ class TrajectoryController(Controller):
 
     # Tunables. Conservative defaults that pass Level 2 reliably; lower the time / increase
     # the speed once the basic controller works.
-    NOMINAL_SPEED = 0.8  # m/s, target average speed used to time the spline segments
-    APPROACH_OFFSET = 0.4  # m, distance of pre/post gate waypoints from the gate center
+    NOMINAL_SPEED = 1.4  # m/s, target average speed used to time the spline segments
+    APPROACH_OFFSET = 0.3  # m, distance of pre/post gate waypoints from the gate center
     TAKEOFF_HEIGHT = 0.4  # m, height of an extra waypoint above the start position
     POSE_CHANGE_TOL = 0.02  # m, rebuild the plan if a gate moved more than this in xy/z
     QUAT_CHANGE_TOL = np.deg2rad(2.0)  # rad, or rotated more than this
@@ -138,7 +138,6 @@ class TrajectoryController(Controller):
             pts = np.vstack([start_pos, start_pos])
             self._spline = CubicSpline(t, pts)
             self._spline_vel = self._spline.derivative()
-            self._spline_acc = self._spline.derivative(2)
             return
 
         waypoints = self._build_waypoints(start_pos, target_gate)
@@ -154,7 +153,6 @@ class TrajectoryController(Controller):
         bc = ((1, np.asarray(start_vel, dtype=np.float64)), (2, np.zeros(3)))
         self._spline = CubicSpline(t, waypoints, bc_type=bc)
         self._spline_vel = self._spline.derivative()
-        self._spline_acc = self._spline.derivative(2)
         self._t_start = float(t[0])
         self._t_end = float(t[-1]) + self.FINISH_HOLD_TIME
 
@@ -205,28 +203,11 @@ class TrajectoryController(Controller):
             self._finished = True
             t = self._t_end
 
-        # Calculate yaw setpoint: face the direction of the gate we are approaching
-        target_gate = int(obs["target_gate"])
-        if target_gate != -1:
-            gate_quat = obs["gates_quat"][target_gate]
-            axis = self._gate_axis_world(gate_quat)
-            des_yaw = np.arctan2(axis[1], axis[0])
-        else:
-            des_yaw = 0.0
-
-        # Clamp evaluation time to the spline range to avoid extrapolation
-        t_eval = min(t, self._spline.x[-1])
-        des_pos = self._spline(t_eval)
-
-        if t < self._spline.x[-1]:
-            des_vel = self._spline_vel(t_eval)
-            des_acc = self._spline_acc(t_eval)
-        else:
-            des_vel = np.zeros(3)
-            des_acc = np.zeros(3)
+        des_pos = self._spline(t)
+        des_vel = self._spline_vel(t) if t < self._spline.x[-1] else np.zeros(3)
 
         action = np.concatenate(
-            [des_pos, des_vel, des_acc, [des_yaw], np.zeros(3)]
+            [des_pos, des_vel, np.zeros(3), np.zeros(1), np.zeros(3)]
         ).astype(np.float32)
         return action
 

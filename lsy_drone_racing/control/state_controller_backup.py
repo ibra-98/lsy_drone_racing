@@ -29,8 +29,8 @@ class Level2StateController(Controller):
         self._freq = config.env.freq
         self._dt = 1.0 / self._freq
 
-        self._speed = 0.5
-        self._lead_limit = 0.55
+        self._speed = 0.42   # 0.42
+        self._lead_limit = 0.45
         self._approach_dist = 0.48
         self._exit_dist = 0.55
         self._waypoint_tol = 0.13

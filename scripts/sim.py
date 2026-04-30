@@ -25,12 +25,11 @@ if TYPE_CHECKING:
     from lsy_drone_racing.control.controller import Controller
     from lsy_drone_racing.envs.drone_race import DroneRaceEnv
 
-
 logger = logging.getLogger(__name__)
 
 
 def simulate(
-    config: str = "level0.toml",
+    config: str = "level2.toml",
     controller: str | None = None,
     n_runs: int = 1,
     render: bool | None = None,
